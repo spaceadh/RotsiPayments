@@ -42,29 +42,32 @@ npm run dev
 
 Create a local `.dev.vars` file for secrets. Never commit it.
 
-Required local secrets:
+Secrets needed for this milestone:
 
 - `MONGODB_URI`
 - `INTERNAL_ADMIN_TOKEN`
-- `DARAJA_CONSUMER_KEY`
-- `DARAJA_CONSUMER_SECRET`
+
+Daraja credentials will be added to the environment when the provider integration is implemented.
 
 The sandbox database name is configured as `rotsi_payments_sandbox` in `wrangler.jsonc`.
 
 ## Database initialization
 
-Configure secrets in the local environment or Cloudflare:
+Configure secrets locally or in Cloudflare:
 
 ```bash
 npx wrangler secret put MONGODB_URI
 npx wrangler secret put INTERNAL_ADMIN_TOKEN
 ```
 
-After starting or deploying the Worker, initialize indexes using the protected endpoint:
+After starting or deploying the Worker, initialize indexes using the protected endpoint. Enter the setup token without echoing it in your terminal:
 
 ```bash
+read -s INTERNAL_ADMIN_TOKEN
+export INTERNAL_ADMIN_TOKEN
 curl -X POST http://localhost:8787/internal/database/initialize \
-  -H "Authorization: Bearer YOUR_SETUP_TOKEN"
+  -H "Authorization: Bearer ${INTERNAL_ADMIN_TOKEN}"
+unset INTERNAL_ADMIN_TOKEN
 ```
 
 Verify database readiness:
@@ -73,7 +76,7 @@ Verify database readiness:
 curl http://localhost:8787/health/ready
 ```
 
-Do not put the setup token in a URL, source file, shell history, or Git commit. Prefer an environment variable when invoking curl.
+Do not put the setup token in a URL, source file, or Git commit.
 
 ## Environments
 
