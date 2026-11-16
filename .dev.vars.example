@@ -1,0 +1,9 @@
+# Copy to .dev.vars for `wrangler dev`. Never commit real values.
+MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/
+MONGODB_DATABASE=rotsi_payments_dev
+# openssl rand -base64 32
+MASTER_KEY=
+# openssl rand -hex 32  (at least 32 characters)
+INTERNAL_ADMIN_TOKEN=
+# Public tunnel URL that Safaricom can reach for callbacks in local dev
+PUBLIC_BASE_URL=https://your-tunnel.example.com

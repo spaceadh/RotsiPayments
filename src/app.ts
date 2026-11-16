@@ -1,160 +1,57 @@
 import { Hono } from "hono";
-import type { Env } from "./env";
-import { constantTimeEqual } from "./security/timing-safe";
+import { bodyLimit } from "hono/body-limit";
+import { requestId } from "hono/request-id";
+import { secureHeaders } from "hono/secure-headers";
+import { getStore } from "./db/client";
+import { AppError, errorBody } from "./lib/http";
+import { errorInfo, log } from "./lib/log";
+import { adminRoutes } from "./routes/admin";
+import { hookRoutes } from "./routes/hooks";
+import type { AppEnv } from "./routes/middleware";
+import { tenantRoutes } from "./routes/tenant";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppEnv>();
 
-function getDatabaseStub(env: Env) {
-  const id = env.MONGODB_CONNECTION.idFromName("mongodb-primary");
-  return env.MONGODB_CONNECTION.get(id);
-}
-
-app.get("/", (c) =>
-  c.json({
-    success: true,
-    service: "Rotsi Payments API",
-    version: "v1",
+// Server-to-server JSON API: no CORS, no cookies, small bodies, strict headers.
+app.use("*", requestId());
+app.use("*", secureHeaders({ crossOriginResourcePolicy: "same-origin" }));
+app.use(
+  "*",
+  bodyLimit({
+    maxSize: 32 * 1024,
+    onError: (c) => c.json(errorBody("PAYLOAD_TOO_LARGE", "The request body is too large."), 413),
   }),
 );
+app.use("*", async (c, next) => {
+  await next();
+  c.header("cache-control", "no-store");
+});
 
-// Liveness: confirms that the Worker process can serve requests.
-app.get("/health", (c) =>
-  c.json({
-    success: true,
-    status: "ok",
-  }),
-);
-
-app.get("/health/live", (c) =>
-  c.json({
-    success: true,
-    status: "alive",
-  }),
-);
-
-// Readiness: verifies that MongoDB can be reached.
+app.get("/", (c) => c.json({ success: true, service: "Rotsi Payments API", version: "v1" }));
+app.get("/health", (c) => c.json({ success: true, status: "ok" }));
 app.get("/health/ready", async (c) => {
   try {
-    const database = await getDatabaseStub(c.env).ping();
-    return c.json({
-      success: true,
-      status: "ready",
-      dependencies: {
-        mongodb: {
-          status: database.status,
-          latencyMs: database.latencyMs,
-        },
-      },
-    });
+    const db = await getStore(c.env).ping();
+    return c.json({ success: true, status: "ready", dependencies: { mongodb: db } });
   } catch {
-    // Do not expose database hostnames, connection strings, or driver errors.
-    return c.json(
-      {
-        success: false,
-        status: "not_ready",
-        dependencies: {
-          mongodb: "unavailable",
-        },
-      },
-      503,
-    );
+    return c.json({ success: false, status: "not_ready", dependencies: { mongodb: "unavailable" } }, 503);
   }
 });
 
-// Explicit schema bootstrap. This endpoint is disabled until the setup
-// token is configured as a Cloudflare secret.
-app.post("/internal/database/initialize", async (c) => {
-  const expectedToken = c.env.INTERNAL_ADMIN_TOKEN;
-  if (!expectedToken) {
-    return c.json(
-      {
-        success: false,
-        error: {
-          code: "SETUP_NOT_CONFIGURED",
-          message: "Database initialization is not enabled.",
-        },
-      },
-      503,
-    );
-  }
+// Order matters: hooks and admin are mounted before the tenant catch-all auth.
+app.route("/v1/hooks", hookRoutes);
+app.route("/v1/admin", adminRoutes);
+app.route("/v1", tenantRoutes);
 
-  const authorization = c.req.header("authorization") ?? "";
-  const suppliedToken = authorization.startsWith("Bearer ")
-    ? authorization.slice("Bearer ".length)
-    : "";
-
-  if (!constantTimeEqual(suppliedToken, expectedToken)) {
-    return c.json(
-      {
-        success: false,
-        error: {
-          code: "UNAUTHORIZED",
-          message: "A valid authorization token is required.",
-        },
-      },
-      401,
-    );
-  }
-
-  try {
-    const result = await getDatabaseStub(c.env).initialize();
-    return c.json({
-      success: true,
-      data: result,
-    });
-  } catch {
-    return c.json(
-      {
-        success: false,
-        error: {
-          code: "DATABASE_INITIALIZATION_FAILED",
-          message: "Database initialization failed.",
-        },
-      },
-      503,
-    );
-  }
-});
-
-app.get("/v1", (c) =>
-  c.json({
-    success: true,
-    apiVersion: "v1",
-    status: "foundation",
-  }),
-);
-
-app.notFound((c) =>
-  c.json(
-    {
-      success: false,
-      error: {
-        code: "NOT_FOUND",
-        message: "The requested resource was not found.",
-      },
-    },
-    404,
-  ),
-);
+app.notFound((c) => c.json(errorBody("NOT_FOUND", "The requested resource was not found."), 404));
 
 app.onError((error, c) => {
-  // Do not log request bodies, credentials, or payment data.
-  console.error("Unhandled API error", {
-    name: error.name,
-    message: error.message,
-    path: c.req.path,
-  });
-
-  return c.json(
-    {
-      success: false,
-      error: {
-        code: "INTERNAL_SERVER_ERROR",
-        message: "An unexpected error occurred.",
-      },
-    },
-    500,
-  );
+  if (error instanceof AppError) {
+    return c.json(errorBody(error.code, error.message, error.details), error.status);
+  }
+  // Never echo internals, request bodies, credentials or payment data.
+  log("error", "api.unhandled_error", { path: c.req.path, requestId: c.get("requestId"), ...errorInfo(error) });
+  return c.json(errorBody("INTERNAL_SERVER_ERROR", "An unexpected error occurred."), 500);
 });
 
 export default app;

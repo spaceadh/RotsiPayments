@@ -3,27 +3,48 @@
   "name": "rotsi-payments-api",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-16",
-  "workers_dev": true,
+  // The MongoDB driver needs Node.js APIs (net/tls sockets, crypto, buffers).
+  "compatibility_flags": ["nodejs_compat"],
+
+  // One deployment serves both environments. rk_test_ keys hit the Daraja
+  // sandbox and rk_live_ keys hit production, so integrators use one base URL.
+  "workers_dev": false,
+  "routes": [{ "pattern": "api.rotsi.co.ke", "custom_domain": true }],
+
   "vars": {
-    "APP_ENV": "sandbox",
-    "DARAJA_ENV": "sandbox",
-    "MONGODB_DATABASE": "rotsi_payments_sandbox"
+    "APP_ENV": "production",
+    "PUBLIC_BASE_URL": "https://api.rotsi.co.ke",
+    "MONGODB_DATABASE": "rotsi_payments",
+    "MONGODB_SHARDS": "4",
+    // Flip to "true" only after Safaricom go-live approval.
+    "LIVE_PAYMENTS_ENABLED": "false",
+    // Comma-separated Safaricom callback IPs. Empty = not enforced. See README.
+    "DARAJA_CALLBACK_IPS": ""
   },
+
   "durable_objects": {
-    "bindings": [
+    "bindings": [{ "name": "MONGODB_CONNECTION", "class_name": "MongoDBConnection" }]
+  },
+  "migrations": [{ "tag": "v1", "new_classes": ["MongoDBConnection"] }],
+
+  "queues": {
+    "producers": [{ "binding": "WEBHOOK_QUEUE", "queue": "rotsi-webhooks" }],
+    "consumers": [
       {
-        "name": "MONGODB_CONNECTION",
-        "class_name": "MongoDBConnection"
+        "queue": "rotsi-webhooks",
+        "max_batch_size": 10,
+        "max_batch_timeout": 2,
+        "max_retries": 10,
+        "dead_letter_queue": "rotsi-webhooks-dlq"
       }
     ]
   },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_classes": ["MongoDBConnection"]
-    }
+
+  "ratelimits": [
+    { "name": "API_RATE_LIMITER", "namespace_id": "1001", "simple": { "limit": 120, "period": 60 } }
   ],
-  "observability": {
-    "enabled": true
-  }
+
+  "triggers": { "crons": ["*/5 * * * *"] },
+
+  "observability": { "enabled": true }
 }
