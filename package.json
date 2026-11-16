@@ -1,0 +1,25 @@
+{
+  "name": "rotsi-payments-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "types": "wrangler types",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.10.0",
+    "mongodb": "^6.20.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20261116.0",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.45.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
