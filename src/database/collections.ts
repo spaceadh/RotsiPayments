@@ -1,10 +1,10 @@
 export const COLLECTIONS = {
-  businesses: "businesses",
-  apiKeys: "api_keys",
-  transactions: "transactions",
-  paymentEvents: "payment_events",
-  webhookDeliveries: "webhook_deliveries",
-  auditLogs: "audit_logs",
+  businesses: "payments_businesses",
+  apiKeys: "payments_api_keys",
+  transactions: "payments_transactions",
+  paymentEvents: "payments_payment_events",
+  webhookDeliveries: "payments_webhook_deliveries",
+  auditLogs: "payments_audit_logs",
 } as const;
 
 export type CollectionName = (typeof COLLECTIONS)[keyof typeof COLLECTIONS];
