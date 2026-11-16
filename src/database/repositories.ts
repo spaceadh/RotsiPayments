@@ -91,7 +91,20 @@ export class TransactionsRepository {
   }
 
   async create(
-    input: Omit<TransactionDocument, "_id" | "createdAt" | "updatedAt">,
+    input: Pick<
+      TransactionDocument,
+      "businessId" | "type" | "status" | "amount" | "currency" | "idempotencyKey" | "provider"
+    > &
+      Partial<
+        Pick<
+          TransactionDocument,
+          | "providerConversationId"
+          | "providerOriginatorConversationId"
+          | "providerTransactionId"
+          | "resultCode"
+          | "resultDescription"
+        >
+      >,
   ): Promise<string> {
     const now = new Date();
     const result = await this.collection.insertOne({
@@ -112,7 +125,11 @@ export class PaymentEventsRepository {
   }
 
   async insertOnce(
-    input: Omit<PaymentEventDocument, "_id">,
+    input: Pick<
+      PaymentEventDocument,
+      "deduplicationKey" | "provider" | "eventType" | "payloadHash" | "receivedAt"
+    > &
+      Partial<Pick<PaymentEventDocument, "transactionId" | "businessId">>,
   ): Promise<boolean> {
     try {
       await this.collection.insertOne({ ...input, _id: new ObjectId() });
@@ -134,7 +151,11 @@ export class WebhookDeliveriesRepository {
   }
 
   async create(
-    input: Omit<WebhookDeliveryDocument, "_id" | "createdAt" | "updatedAt">,
+    input: Pick<
+      WebhookDeliveryDocument,
+      "businessId" | "eventId" | "targetUrl" | "status" | "attempts" | "nextAttemptAt"
+    > &
+      Partial<Pick<WebhookDeliveryDocument, "lastStatusCode">>,
   ): Promise<string> {
     const now = new Date();
     const result = await this.collection.insertOne({
@@ -154,7 +175,12 @@ export class AuditLogsRepository {
     this.collection = db.collection<AuditLogDocument>(COLLECTIONS.auditLogs);
   }
 
-  async append(input: Omit<AuditLogDocument, "_id" | "createdAt">): Promise<string> {
+  async append(
+    input: Pick<AuditLogDocument, "actorType" | "action" | "resourceType"> &
+      Partial<
+        Pick<AuditLogDocument, "businessId" | "actorId" | "resourceId" | "metadata">
+      >,
+  ): Promise<string> {
     const result = await this.collection.insertOne({
       ...input,
       _id: new ObjectId(),
