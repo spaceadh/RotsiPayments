@@ -1,4 +1,4 @@
-import { DurableObject, type DurableObjectState } from "cloudflare:workers";
+import { DurableObject } from "cloudflare:workers";
 import { MongoClient, type Db } from "mongodb";
 import type { Env } from "../env";
 import { MongoRepositories } from "./repositories";
