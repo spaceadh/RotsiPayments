@@ -4,6 +4,25 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-11-16",
   "workers_dev": true,
+  "vars": {
+    "APP_ENV": "sandbox",
+    "DARAJA_ENV": "sandbox",
+    "MONGODB_DATABASE": "rotsi_payments_sandbox"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MONGODB_CONNECTION",
+        "class_name": "MongoDBConnection"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["MongoDBConnection"]
+    }
+  ],
   "observability": {
     "enabled": true
   }
